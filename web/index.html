@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<title>Upload large CSV file</title>
+		<style>
+			body{font-size:8pt; color:#333}
+			#wrap{width:500px; margin:5px auto}
+			#responce{height:200px; overflow-y:scroll; border:1px solid #ddd;}
+		</style>
+                <style>
+                    
+                                  
+                           table {
+                              overflow:scroll;
+                              border-collapse: collapse;
+                              border-spacing: 0;
+                              width:30%;
+                              margin: auto;
+                              border: 3px solid green;
+                              padding: 10px;
+                            }
+
+                            th, td {
+                              text-align: left;
+                              padding: 8px;
+                            }
+
+                            tr:nth-child(even){background-color: #f2f2f2}
+                            </style>
+	</head>
+
+	<body>
+		<div id="wrap">
+			
+				
+                                    
+			<!-- // response -->
+                        <h2>Big CSV Uploader</h2>
+			<input type="file" id="fileSelected"/>
+			<button id="btnUpload">Start Upload</button>
+                        <button id="btnCancel" disabled="true">Cancel Upload</button>
+                        <button id="btnPause" disabled="true">Pause Upload</button>
+                        <button id="btnResume" disabled="true">Resume Upload</button>
+                        <button id="btnStop" disabled="true">Stop and Save Upload</button>
+                        <br/><br/><br/>
+                        <h3>View/Delete Data</h3>
+                        <form name="dataform" action="">
+                            Lower Bound Date:<br>
+                          <input type="date" name="lb" id="lb" class="text-input">
+                          <br><br>
+                          Upper Bound Date:<br>
+                       <input type="date" name="ub" id="ub"class="text-input">
+                             <br><br>
+                           
+                           </form>
+
+                        <button id="btnView" disabled="true">View Data</button>
+                        <button id="btnDelete" disabled="true">Delete Data</button>
+                        
+                        
+		</div><!-- // wrap -->
+                <div id="progress"></div>
+		<script
+			  src="https://code.jquery.com/jquery-3.1.1.min.js"
+			  integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
+			  crossorigin="anonymous"></script>
+                          <script>
+			var reader_offset = 0;		//current reader offset position
+			var buffer_size = 1024;		//
+			var pending_content = '';
+			var i = 0;
+                        //var size;
+			/**
+			* Read a chunk of data from current offset.
+			*/
+                       
+			function readAndSendChunk()
+			{
+                            if(i===0){
+				var reader = new FileReader();
+				var file = $('#fileSelected')[0].files[0];
+                           	reader.onloadend = function(evt){
+					
+					//check for end of file
+					if(evt.loaded === 0) return;
+					
+					//increse offset value
+					reader_offset += evt.loaded;
+					
+					//check for only complete line
+					var last_line_end = evt.target.result.lastIndexOf('\n');
+					var content = pending_content + evt.target.result.substring(0, last_line_end);
+					
+					pending_content = evt.target.result.substring(last_line_end+1, evt.target.result.length);
+					
+					//upload data
+					send(content);
+				};
+                                try{
+				var blob = file.slice(reader_offset, reader_offset + buffer_size);
+				reader.readAsText(blob);
+                            $('#btnStop').prop('disabled', false);
+    }
+			
+                            catch(err){
+                                window.alert('Please select the file');
+                                
+                               $('#btnUpload').prop('disabled', false);
+                               $('#btnPause').prop('disabled', true);
+                               $('#btnCancel').prop('disabled', true);
+                                
+                            }}
+			}
+			/**
+			* Send data to server using AJAX
+			*/
+			function send(content)
+			{
+                                                    
+			ajaxCall = $.ajax({
+                        url:'CachedConnectionServlet',
+                        data:{content:content},
+                        type:'post',
+                        cache:false,
+                        success: function () {
+                         console.log('success');
+                                }
+                            });
+
+
+                        ajaxCall.done(function(response){
+                            //$( '#responce' ).append( '<li>' + response + '</li>');
+                            readAndSendChunk();
+                                            });}
+
+			
+			/**
+			* On page load
+                        * 
+			*/
+                       $('#btnCancel').click(function(){
+                           if(window.confirm('All Data will be lost!!!')){
+                         ajaxCall.abort();
+                         $.ajax({
+                        url:'Viewservlet',
+                        type:'post',
+                        cache:false,
+                        success: function () {
+                         console.log('Canceled');
+                                }
+                            });
+                      window.location.reload();
+                           }});
+                       
+                       
+                       $('#btnDelete').click(function(){
+                           var l = $("#lb").val();
+                           var u = $("#ub").val();
+                           if(window.confirm('Delete data in this date range?')){
+                         $.ajax({
+                        url:'Deleteservlet',
+                        type:'post',
+                        cache:false,
+                        data:{l:l,u:u},
+                        success: function () {
+                         console.log('Deleted');
+                                }
+                            });
+                          }});
+                       
+                       
+                       
+                       $('#btnPause').click(function(){
+                         $('#btnPause').prop('disabled', true);
+                         $('#btnResume').prop('disabled', false);
+                         $('#btnCancel').prop('disabled', false);
+                         $('#btnUpload').prop('disabled', true);
+                           i=1;
+                         $('#btnView').prop('disabled', false);
+                         $('#btnDelete').prop('disabled', false);
+                       });
+                       
+                       
+                        $('#btnStop').click(function(){
+                         $('#btnPause').prop('disabled', true);
+                         $('#btnResume').prop('disabled', false);
+                         $('#btnCancel').prop('disabled', false);
+                         $('#btnUpload').prop('disabled', true);
+                         if(window.confirm('All data uploaded will be saved.')){
+                         ajaxCall.abort();
+                         console.log('stopped upload');
+                         window.location.reload();
+                           }});
+                       
+                       
+                       
+                       
+                        $('#btnResume').click(function(){
+                          $('#btnPause').prop('disabled', false);
+                          $('#btnResume').prop('disabled', true);
+                          $('#btnView').prop('disabled', true);
+                           i=0;
+                          $("#dataTable").html(""); 
+                           readAndSendChunk();
+                       });
+                       
+			
+                        $('#btnView').click(function(){
+                         $('#btnPause').prop('disabled', true);
+                         $('#btnResume').prop('disabled', false);
+                         $('#btnCancel').prop('disabled', false);
+                         $('#btnUpload').prop('disabled', true);
+                         
+                         var l = $("#lb").val();
+                         var u = $("#ub").val();
+                         $.ajax({
+                        url:'Viewservlet',
+                        //data:{name:content},
+                        type:'get',
+                        data:{l:l,u:u},
+                        cache:false,
+                        success: function () {
+                         console.log('success');
+                                }
+                            }).done(function(response){
+                                response=JSON.parse(response);
+                                buildHtmlTable(response);
+                                });
+                                                                
+                                });
+                                
+                                
+                                
+                            function buildHtmlTable(response) {
+                                            
+                                var columns = addAllColumnHeaders(response);
+
+                                for (var i = 0; i < response.length; i++) {
+                                  var row$ = $('<tr/>');
+                                  for (var colIndex = 0; colIndex < columns.length; colIndex++) {
+                                    var cellValue = response[i][columns[colIndex]];
+                                    if (cellValue === null) cellValue = "";
+                                    row$.append($('<td/>').html(cellValue));
+                                  }
+                                  $("#dataTable").append(row$);
+                                }
+                                
+                              }
+                              
+                              
+                              function addAllColumnHeaders(response)
+                            {
+                                var columnSet = [];
+                                var headerTr$ = $('<tr/>');
+
+                                for (var i = 0 ; i < response.length ; i++) {
+                                    var rowHash = response[i];
+                                    for (var key in rowHash) {
+                                        if ($.inArray(key, columnSet) === -1){
+                                            columnSet.push(key);
+                                            headerTr$.append($('<th/>').html(key));
+                                        }
+                                    }
+                                }
+                                $("#dataTable").append(headerTr$);
+
+                                return columnSet;
+                            }
+                                 
+                                              
+                                
+                        
+		     $('#btnUpload').click(function()
+                            {
+                               
+                               $('#btnUpload').prop('disabled', true);
+                               $('#btnPause').prop('disabled', false);
+                               $('#btnCancel').prop('disabled', false);
+			         reader_offset = 0;
+			          pending_content = '';
+			          readAndSendChunk();
+				});
+			
+</script>
+<table id="dataTable">
+</table>
+
+	</body>
+</html>
